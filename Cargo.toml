@@ -1,0 +1,8 @@
+[package]
+name = "rpg"
+version = "0.1.0"
+authors = ["Andre Segura <andrensegura@gmail.com>"]
+
+[dependencies]
+lib_andre = { git = "https://github.com/andrensegura/lib_andre" , version = "0.1.2" }
+rand = "0.3"

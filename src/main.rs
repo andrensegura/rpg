@@ -49,6 +49,12 @@ impl fmt::Display for Stats {
     }
 }
 
+
+////////////////////////////////////////////////////
+//                   MAIN                         //
+////////////////////////////////////////////////////
+
+
 fn main() {
     try_main().unwrap();
 }
@@ -80,10 +86,23 @@ fn try_main() -> Result<(), Box<Error>>{
     println!("==============================ENEMY===================\n|| {}", monster.stats);
     println!("======================================================");
 
-    monster.stats.health = attack(player_stats.attack, monster.stats.health);
-
-    println!("==============================ENEMY===================\n|| {}", monster.stats);
-    println!("======================================================");
+    while monster.stats.health > 0 {
+        let response: Vec<char> = try!(prompt("command: "))
+                                        .chars()
+                                        .collect();
+        if response[0].to_lowercase().next().unwrap() == 'a' {
+            let damage = attack(player_stats.attack, player_stats.critch);
+            if damage > monster.stats.health {
+                monster.stats.health = 0;
+            } else {
+                monster.stats.health -= damage;
+            }
+            println!("Dealt {} damage to monster!", damage);
+    
+            println!("==============================ENEMY===================\n|| {}", monster.stats);
+            println!("======================================================");
+        }
+    }
 
     Ok(())
 
@@ -131,7 +150,7 @@ fn spawn_monster(level: u32) -> Result<Monster, Box<Error>> {
                              },
             };
 
-    calculate_stats(&monster.attributes, &mut monster.stats);
+    try!(calculate_stats(&monster.attributes, &mut monster.stats));
 
     Ok(monster)
 
@@ -197,14 +216,15 @@ fn calculate_stats(attributes: &Attr, stats: &mut Stats) -> Result<(), Box<Error
 
     Ok(())
 }
-////////////////////////////////////////////////////
-//              END STATS STUFF                   //
-////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////
 //                BATTLE STUFF                    //
 ////////////////////////////////////////////////////
 
-fn attack(agent_attack: u32, patient_health: u32) -> u32 {
- patient_health - ((agent_attack as f64 * 0.9) as u32 + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32))))
+fn attack(agent_attack: u32, agent_critch: u32) -> u32 {
+ ((agent_attack as f64 * 0.9) as u32 + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32)))
+                    + { if (rand::random::<u32>() % 100) < agent_critch { println!("Crit!"); ((agent_attack as f64 * 0.9) as u32 + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32))))
+                                                                      }else{0}
+                      }
+                  )
 }

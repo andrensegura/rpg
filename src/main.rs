@@ -64,6 +64,26 @@ fn main() {
 
 
 fn try_main() -> Result<(), Box<Error>>{
+    let mut player = try!(intro());
+    for level in 1..11 {
+        if try!(battle(&mut player, level)) != 0 {
+            try!(prompt("Press enter to continue..."));
+            println!("You've gained 5 attribute points! Go ahead and assign them.");
+            try!(allocate(5, &mut player.attributes));
+        } else {
+            println!("You made it to Floor {}. Try again!", level);
+            return Ok(());
+        }
+    }
+    println!("You've beaten all 10 floors! Yay!");
+    Ok(())
+
+}
+
+////////////////////////////////////////////////////
+//                 PHASES                         //
+////////////////////////////////////////////////////
+fn intro() -> Result<Creature, Box<Error>>{
     let mut player = Creature {
             attributes: Attr {  str: 0,
                                 vit: 0,
@@ -86,113 +106,24 @@ fn try_main() -> Result<(), Box<Error>>{
             };
 
 
-    try!(intro(&mut player.attributes));
-
-
-    for level in 1..11 {
-        match remove_file("log/log.rpg") {
-            Ok(_)  => {},
-            Err(_) => {},
-        }
-
-        try!(calculate_stats(&player.attributes, &player.item, &mut player.stats));
-        let mut monster = try!(spawn_monster(level));
-        refresh_stats(&player.stats, &monster.stats, level);
-
-        loop {
-            let response: Vec<char> = try!(prompt("command: "))
-                                            .chars()
-                                            .collect();
-            let response_key = if response.len() == 0 {
-                                    'q'
-                                }else{
-                                    response[0].to_lowercase().next().unwrap()
-                                };
-    
-            match response_key {
-                'a' => { let player_damage = calc_damage(player.stats.attack, player.stats.critch);
-                         basic_attack(player_damage, &mut monster.stats.health);
-                         try!(log(format!("Dealt {} damage!", player_damage)));
-                         if monster.stats.health == 0 { refresh_stats(&player.stats, &monster.stats, level);
-                                                        try!(show_log());
-                                                        println!("You win!"); break;
-                                                      }
-                       },
-                'h' => { player.stats.health += { let heal = (player.stats.health as f64 * 0.2) as u32;
-                                                  try!(log(format!("You healed for {}", heal)));
-                                                  heal };
-                       }, 
-                 _  => { println!("Not a valid action.");
-                         refresh_stats(&player.stats, &monster.stats, level);
-                         continue; },
-            };
-    
-            refresh_stats(&player.stats, &monster.stats, level);
-            try!(show_log());
-    
-            let monster_damage = calc_damage(monster.stats.attack, monster.stats.critch);
-            basic_attack(monster_damage, &mut player.stats.health);
-            try!(log(format!("Took {} damage!", monster_damage)));
-            refresh_stats(&player.stats, &monster.stats, level);
-            try!(show_log());
-            if player.stats.health == 0 { println!("You died! :("); return Ok(()); }
-    
-        }
-
-        if (rand::random::<u32>() % 100) <= player.stats.dropra {
-            player.item = Attr {  str: {if (rand::random::<u32>() % 100) <= 50 {
-                                            (rand::random::<u32>() % (level + 1)) * 2
-                                        } else { 0 }},
-                                  vit: {if (rand::random::<u32>() % 100) <= 50 {
-                                            (rand::random::<u32>() % (level + 1)) * 2
-                                        } else { 0 }},
-                                  agi: {if (rand::random::<u32>() % 100) <= 50 {
-                                            (rand::random::<u32>() % (level + 1)) * 2
-                                        } else { 0 }},
-                                  dex: {if (rand::random::<u32>() % 100) <= 50 {
-                                            (rand::random::<u32>() % (level + 1)) * 2
-                                        } else { 0 }},
-                                  luk: {if (rand::random::<u32>() % 100) <= 50 {
-                                            (rand::random::<u32>() % (level + 1)) * 2
-                                        } else { 0 }},
-                               };
-            println!("You found a stat boosting item! It provides:\n{}", player.item);
-        }
-
-        try!(prompt("Press enter to continue..."));
-        println!("You've gained 5 attribute points! Go ahead and assign them.");
-        try!(allocate(5, &mut player.attributes));
-
-    }
-
-    println!("You've beaten all 10 floors! Yay!");
-    Ok(())
-
-}
-
-////////////////////////////////////////////////////
-//                 PHASES                         //
-////////////////////////////////////////////////////
-fn intro(attributes: &mut Attr) -> Result<(), Box<Error>>{
-    let mut attributes = attributes;
     let unallocated = 10;
 
     clear();
     println!("Welcome to the RPG! Your task is to get through 10 floors,");
     println!("each containing a monster.");
     println!("To get you started, you have 10 unallocated attribute points.");
-    println!("Your current attributes are:\n\t{}\nLet's allocate them.", attributes);
+    println!("Your current attributes are:\n\t{}\nLet's allocate them.", player.attributes);
 
-    try!(allocate(unallocated, &mut attributes));
+    try!(allocate(unallocated, &mut player.attributes));
 
-    println!("Your final attributes are:\n\t{}", attributes);
+    println!("Your final attributes are:\n\t{}", player.attributes);
     println!("Let's start your journey!");
     try!(prompt("Are you ready?: "));
     println!("Good!");
     sleep_ms(1000);
     clear();
 
-    Ok(())
+    Ok(player)
 
 }
 
@@ -214,9 +145,6 @@ fn refresh_stats(player_stats: &Stats, monster_stats: &Stats, floor: u32) {
 }
 
 fn log(event: String) -> Result<(), Box<Error>>{
-//    let mut file_path = try!(current_dir());
-//    file_path.push("log");
-//    file_path.push("log.rpg");
     let mut file = OpenOptions::new()
             .write(true)
             .append(true)
@@ -233,12 +161,7 @@ fn log(event: String) -> Result<(), Box<Error>>{
 }
 
 fn show_log() -> Result<(), Box<Error>>{
-//    let mut file_path = try!(current_dir());
-//    file_path.push("log");
-//    file_path.push("log.rpg");
-
     println!("{}", try!(print_file("log/log.rpg")));
-
     Ok(())
 }
 
@@ -269,6 +192,25 @@ fn spawn_monster(level: u32) -> Result<Creature, Box<Error>> {
 
     Ok(monster)
 
+}
+
+fn spawn_item(level: u32) -> Attr {
+    Attr {  str: {if (rand::random::<u32>() % 100) <= 50 {
+                     (rand::random::<u32>() % (level + 1)) * 2
+                 } else { 0 }},
+            vit: {if (rand::random::<u32>() % 100) <= 50 {
+                     (rand::random::<u32>() % (level + 1)) * 2
+                 } else { 0 }},
+            agi: {if (rand::random::<u32>() % 100) <= 50 {
+                     (rand::random::<u32>() % (level + 1)) * 2
+                 } else { 0 }},
+            dex: {if (rand::random::<u32>() % 100) <= 50 {
+                     (rand::random::<u32>() % (level + 1)) * 2
+                 } else { 0 }},
+            luk: {if (rand::random::<u32>() % 100) <= 50 {
+                     (rand::random::<u32>() % (level + 1)) * 2
+                 } else { 0 }},
+         }
 }
 
 ////////////////////////////////////////////////////
@@ -337,11 +279,15 @@ fn calculate_stats(attributes: &Attr, item: &Attr, stats: &mut Stats) -> Result<
 ////////////////////////////////////////////////////
 
 fn calc_damage(agent_attack: u32, agent_critch: u32) -> u32 {
- ((agent_attack as f64 * 0.9) as u32 + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32)))
-                    + { if (rand::random::<u32>() % 100) <= agent_critch { println!("Crit!"); ((agent_attack as f64 * 0.9) as u32 + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32))))
-                                                                      }else{0}
-                      }
-                  )
+  ((agent_attack as f64 * 0.9) as u32
+  + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32)))
+  + { if (rand::random::<u32>() % 100) <= agent_critch {
+        (agent_attack as f64 * 0.9) as u32
+        + ((rand::random::<u32>() % ((agent_attack as f64 * 0.2) as u32)))
+      }else{
+          0
+      }
+    })
 }
 
 fn basic_attack(agent_damage: u32, patient_health: &mut u32) {
@@ -350,4 +296,61 @@ fn basic_attack(agent_damage: u32, patient_health: &mut u32) {
     } else {
         *patient_health -= agent_damage;
     }
+}
+
+//may want to turn this into a function on the struct Creature.
+//could then use self. but this way makes it so you can choose
+//the participants.
+//thinking: battle(player1, player2) or player.battle(monster)
+fn battle(player: &mut Creature, level: u32) -> Result<u32, Box<Error>>{
+    match remove_file("log/log.rpg") {
+        Ok(_)  => {},
+        Err(_) => {},
+    }
+    try!(calculate_stats(&player.attributes, &player.item, &mut player.stats));
+    let mut monster = try!(spawn_monster(level));
+    refresh_stats(&player.stats, &monster.stats, level);
+    loop {
+        let response: Vec<char> = try!(prompt("command: "))
+            .chars()
+            .collect();
+        let response_key = if response.len() == 0 {
+            'q'
+        }else{
+            response[0].to_lowercase().next().unwrap()
+        };
+        match response_key {
+            'a' => { let player_damage = calc_damage(player.stats.attack, player.stats.critch);
+                     basic_attack(player_damage, &mut monster.stats.health);
+                     try!(log(format!("Dealt {} damage!", player_damage)));
+                     if monster.stats.health == 0 { refresh_stats(&player.stats, &monster.stats, level);
+                        try!(show_log());
+                        println!("You win!");
+                        break;
+                     }
+                   },
+            'h' => { player.stats.health += { let heal = (player.stats.health as f64 * 0.2) as u32;
+                     try!(log(format!("You healed for {}", heal)));
+                     heal };
+                   }, 
+             _  => { println!("Not a valid action.");
+                     refresh_stats(&player.stats, &monster.stats, level);
+                     continue;
+                   },
+        };
+        refresh_stats(&player.stats, &monster.stats, level);
+        try!(show_log());
+        let monster_damage = calc_damage(monster.stats.attack, monster.stats.critch);
+        basic_attack(monster_damage, &mut player.stats.health);
+        try!(log(format!("Took {} damage!", monster_damage)));
+        refresh_stats(&player.stats, &monster.stats, level);
+        try!(show_log());
+        if player.stats.health == 0 { println!("You died! :("); return Ok(0); }
+    }
+    if (rand::random::<u32>() % 100) <= player.stats.dropra {
+        player.item = spawn_item(level); 
+        println!("You found a stat boosting item! It provides:\n{}", player.item);
+    }
+
+    Ok(player.stats.health)
 }
